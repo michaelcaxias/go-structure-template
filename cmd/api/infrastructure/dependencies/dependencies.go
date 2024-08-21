@@ -11,12 +11,12 @@ type HandlerContainer struct {
 }
 
 func Start() *HandlerContainer {
-	helloWorldUseCase := &usecases.HelloWorldUseCaseImpl{}
+	helloWorldUseCase := usecases.NewHelloWorldUseCase()
 
 	apiHandlers := HandlerContainer{}
 
 	apiHandlers.HelloWorld = &handlers.HelloWorldHandler{
-		UseCase: helloWorldUseCase,
+		UseCase: &helloWorldUseCase,
 	}
 
 	return &apiHandlers

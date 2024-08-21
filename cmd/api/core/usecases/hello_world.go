@@ -10,6 +10,10 @@ type HelloWorldUseCase interface {
 	Execute(ctx context.Context) (ResponseTest, error)
 }
 
+func NewHelloWorldUseCase() HelloWorldUseCaseImpl {
+	return HelloWorldUseCaseImpl{}
+}
+
 type HelloWorldUseCaseImpl struct {
 }
 

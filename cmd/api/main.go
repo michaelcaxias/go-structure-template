@@ -8,9 +8,6 @@ import (
 	"os"
 )
 
-type Teste struct {
-}
-
 func main() {
 	port := os.Getenv("PORT")
 

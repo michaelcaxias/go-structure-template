@@ -55,43 +55,56 @@ func BindAndValidate(c *gin.Context, obj interface{}) (causes []map[string]strin
 }
 
 func GetCauses(obj interface{}, err error) []map[string]string {
+	if err == nil {
+		return nil
+	}
+
 	causes := make([]map[string]string, 0)
+	reflected := reflect.ValueOf(obj).Elem()
 
-	if err != nil {
+	if reflected.Kind() == reflect.Ptr {
+		reflected = reflected.Elem()
+	}
 
-		reflected := reflect.ValueOf(obj).Elem()
+	for _, validationErr := range err.(validator.ValidationErrors) {
+		fieldName := getFieldName(reflected, validationErr)
+		message := validationErr.Translate(transl)
 
-		if reflected.Kind() == reflect.Ptr {
-			reflected = reflected.Elem()
+		field, ok := reflected.Type().FieldByName(validationErr.StructField())
+		errorType := "body"
+		if ok {
+			errorType = getType(field.Tag)
 		}
 
-		for _, err := range err.(validator.ValidationErrors) {
-			field, _ := reflected.Type().FieldByName(err.StructField())
-			fieldName := field.Tag.Get("json")
-
-			if fieldName == "" {
-				fieldName = err.StructField()
-			}
-
-			causes = append(causes, map[string]string{
-				"field":   fieldName,
-				"message": err.Translate(transl),
-				"type":    getType(field.Tag),
-			})
+		cause := map[string]string{
+			"field":   fieldName,
+			"message": message,
+			"type":    errorType,
 		}
+		causes = append(causes, cause)
 	}
 
 	return causes
 }
 
+func getFieldName(reflected reflect.Value, validationErr validator.FieldError) string {
+	field, _ := reflected.Type().FieldByName(validationErr.StructField())
+	fieldName := field.Tag.Get("json")
+
+	if fieldName == "" {
+		fieldName = validationErr.StructField()
+	}
+
+	return fieldName
+}
+
 func getType(tag reflect.StructTag) string {
-	if tag.Get(Header) != "" {
+	switch {
+	case tag.Get(Header) != "":
 		return "header"
-	}
-
-	if tag.Get(QueryParam) != "" {
+	case tag.Get(QueryParam) != "":
 		return "query"
+	default:
+		return "body"
 	}
-
-	return "body"
 }

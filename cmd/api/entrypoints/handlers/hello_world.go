@@ -5,6 +5,7 @@ import (
 	"hello-fuego/cmd/api/config/validators"
 	"hello-fuego/cmd/api/core/contracts"
 	"hello-fuego/cmd/api/core/usecases"
+	"hello-fuego/cmd/api/errors"
 	"net/http"
 )
 
@@ -13,15 +14,22 @@ type HelloWorldHandler struct {
 }
 
 func (handler *HelloWorldHandler) Handle(c *gin.Context) {
+	err := handler.handle(c)
+
+	if err != nil {
+		c.JSON(err.Status, err)
+	}
+}
+
+func (handler *HelloWorldHandler) handle(c *gin.Context) *errors.APIError {
 	ctx := c.Request.Context()
 
 	req := contracts.HelloWorldRequest{}
 
-	err := validators.BindAndValidate(c, &req)
+	causes, err := validators.BindAndValidate(c, &req)
 
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+		return errors.NewBadRequestError("some fields are invalid", causes)
 	}
 
 	r, err := handler.UseCase.Execute(ctx)
@@ -31,4 +39,6 @@ func (handler *HelloWorldHandler) Handle(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, r)
+
+	return nil
 }

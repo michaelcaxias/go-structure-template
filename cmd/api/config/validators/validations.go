@@ -7,11 +7,18 @@ import (
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	entras "github.com/go-playground/validator/v10/translations/en"
+	"reflect"
 )
 
 var (
 	Validator = validator.New()
 	transl    ut.Translator
+)
+
+const (
+	QueryParam = "form"
+	Header     = "header"
+	Body       = "json"
 )
 
 func init() {
@@ -27,19 +34,64 @@ func init() {
 	}
 }
 
-func BindAndValidate(c *gin.Context, obj interface{}) error {
+func BindAndValidate(c *gin.Context, obj interface{}) (causes []map[string]string, err error) {
+	causesMap := make([]map[string]string, 0)
+
 	if err := c.ShouldBind(obj); err != nil {
-		return fmt.Errorf("error binding request: %w", err)
+		return causesMap, fmt.Errorf("error binding request: %w", err)
 	}
 
 	if err := c.ShouldBindHeader(obj); err != nil {
-		return fmt.Errorf("error binding request headers: %w", err)
+		return causesMap, fmt.Errorf("error binding request headers: %w", err)
 	}
 
 	if err := Validator.Struct(obj); err != nil {
-		// TODO: better validation here
-		return fmt.Errorf("error binding request: %w", err)
+		allCauses := GetCauses(obj, err)
+
+		return allCauses, fmt.Errorf("error binding request: %w", err)
 	}
 
-	return nil
+	return causesMap, nil
+}
+
+func GetCauses(obj interface{}, err error) []map[string]string {
+	causes := make([]map[string]string, 0)
+
+	if err != nil {
+
+		reflected := reflect.ValueOf(obj).Elem()
+
+		if reflected.Kind() == reflect.Ptr {
+			reflected = reflected.Elem()
+		}
+
+		for _, err := range err.(validator.ValidationErrors) {
+			field, _ := reflected.Type().FieldByName(err.StructField())
+			fieldName := field.Tag.Get("json")
+
+			if fieldName == "" {
+				fieldName = err.StructField()
+			}
+
+			causes = append(causes, map[string]string{
+				"field":   fieldName,
+				"message": err.Translate(transl),
+				"type":    getType(field.Tag),
+			})
+		}
+	}
+
+	return causes
+}
+
+func getType(tag reflect.StructTag) string {
+	if tag.Get(Header) != "" {
+		return "header"
+	}
+
+	if tag.Get(QueryParam) != "" {
+		return "query"
+	}
+
+	return "body"
 }
